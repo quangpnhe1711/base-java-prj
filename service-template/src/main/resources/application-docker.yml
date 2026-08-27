@@ -1,0 +1,36 @@
+# Container deployment. Every value comes from the environment, because the same
+# image is promoted through develop, staging and production unchanged.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI}
+
+app:
+  security:
+    resource-client-id: ${OIDC_CLIENT_ID}
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  storage:
+    # Leave the endpoint empty to talk to real AWS S3; set it to point at a
+    # self-hosted MinIO instead.
+    endpoint: ${S3_ENDPOINT:}
+    region: ${S3_REGION:ap-southeast-1}
+    bucket: ${S3_BUCKET}
+    # Omit both keys to use the instance role from the AWS default provider
+    # chain, which is preferable to shipping static credentials.
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
+    path-style-access: ${S3_PATH_STYLE:false}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

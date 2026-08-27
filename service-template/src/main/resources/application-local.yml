@@ -1,0 +1,56 @@
+# Developer machine. Everything points at the docker-compose stack in the
+# repository root, so a checkout runs with no extra setup.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/base_java_prj
+    username: postgres
+    password: postgres
+  jpa:
+    properties:
+      hibernate:
+        # Readable SQL in the console while developing. Never enable in a
+        # deployed environment: it doubles log volume and can leak parameters.
+        format_sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Only used once app.security.enabled is switched on below.
+          issuer-uri: http://localhost:8080/realms/base
+
+app:
+  security:
+    # Off by default, so `docker compose up -d` plus `spring-boot:run` needs
+    # nothing but PostgreSQL. Keycloak is optional infrastructure.
+    #
+    # To work on anything auth-related, start it and switch this on:
+    #   docker compose --profile auth up -d
+    #   mvn -pl service-template spring-boot:run \
+    #       -Dspring-boot.run.profiles=local \
+    #       -Dspring-boot.run.arguments=--app.security.enabled=true
+    enabled: false
+    resource-client-id: base-client
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://localhost:5173
+  storage:
+    # MinIO from docker-compose. Same S3 API as production, so there is no
+    # separate code path for local file storage.
+    endpoint: http://localhost:9000
+    region: us-east-1
+    bucket: base-local
+    access-key: minioadmin
+    secret-key: minioadmin
+    path-style-access: true
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    com.luvina.base: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE

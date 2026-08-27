@@ -1,0 +1,45 @@
+# stg: same checks as develop, deploy gated on a manual click.
+include:
+  - local: '.gitlab/ci/.base.yml'
+
+stages: [verify, analyse, build, deploy]
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "stg"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "stg"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "stg"'
+
+variables:
+  MAVEN_PROFILE: develop
+  IMAGE_TAG: stg-$CI_COMMIT_SHORT_SHA
+
+verify:
+  extends: .verify
+
+integration-test:
+  extends: .integration-test
+
+sonar:
+  extends: .sonar
+  needs: [verify]
+
+build-image:
+  extends: .build-image
+  needs: [verify]
+
+deploy:
+  stage: deploy
+  image: alpine:3.21
+  needs: [build-image]
+  when: manual
+  environment:
+    name: staging
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && TAG=$IMAGE_TAG docker compose pull && TAG=$IMAGE_TAG docker compose up -d"

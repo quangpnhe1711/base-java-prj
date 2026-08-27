@@ -1,0 +1,124 @@
+# Base configuration, shared by every environment.
+# Anything environment-specific is either an environment variable with a safe
+# default, or lives in an application-<profile>.yml next to this file.
+#
+# Secrets are never written here. They arrive as environment variables.
+
+spring:
+  application:
+    name: service-template
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:base_java_prj}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      # Sized for a service behind a connection-limited Postgres. Raise only
+      # with evidence: more connections than the database can serve makes
+      # throughput worse, not better.
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: 2
+      connection-timeout: 10000
+
+  jpa:
+    # Flyway owns the schema. Hibernate must never alter it, in any environment.
+    hibernate:
+      ddl-auto: none
+    # Off by default here even though Boot enables it: keeping a session open
+    # for the whole request hides lazy-loading mistakes until production.
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+      adjust-dates-to-context-time-zone: false
+
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:10MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:10MB}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Spring Boot builds a fully validating decoder from this: it discovers
+          # the JWKS endpoint and checks the issuer claim.
+          #
+          # Required only when app.security.enabled is true. There is no default
+          # on purpose: a deployment must not be able to silently point at the
+          # wrong issuer.
+          issuer-uri: ${OIDC_ISSUER_URI:}
+
+  threads:
+    virtual:
+      enabled: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    # Error bodies come from the global exception handler; the servlet
+    # container must not add its own.
+    include-message: never
+    include-stacktrace: never
+
+app:
+  security:
+    # Token authentication. An identity provider is optional: set this to false
+    # to run against a database only, which is what the local profile does.
+    # Deployed environments must leave it true.
+    enabled: ${SECURITY_ENABLED:true}
+    # Realm roles are always granted. Set this to also grant the per-client
+    # roles of resource_access.<client-id>.
+    resource-client-id: ${OIDC_CLIENT_ID:}
+    cors:
+      # Empty means CORS stays off. List real origins per environment.
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+
+logging:
+  level:
+    root: INFO
+    com.luvina.base: ${LOG_LEVEL:INFO}

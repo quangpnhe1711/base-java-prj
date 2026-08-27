@@ -1,0 +1,84 @@
+# Shared building blocks. Included by every branch pipeline, which then only has
+# to say which environment it deploys to.
+
+variables:
+  MAVEN_IMAGE: maven:3.9-eclipse-temurin-17
+  # Keep the local repository inside the project so it can be cached.
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.showDateTime=true"
+  MAVEN_CLI_OPTS: "-B --no-transfer-progress"
+
+.maven-cache: &maven-cache
+  key:
+    files:
+      - pom.xml
+  paths:
+    - .m2/repository
+
+# Compile and run the unit tests. Checkstyle runs in the validate phase, so a
+# style violation fails here rather than in review.
+.verify:
+  stage: verify
+  image: $MAVEN_IMAGE
+  cache: *maven-cache
+  script:
+    - mvn $MAVEN_CLI_OPTS verify
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "**/target/surefire-reports/TEST-*.xml"
+    expire_in: 1 week
+
+# Integration tests need a Docker daemon for Testcontainers.
+.integration-test:
+  stage: verify
+  image: $MAVEN_IMAGE
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+  cache: *maven-cache
+  script:
+    - mvn $MAVEN_CLI_OPTS verify -Pit
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "**/target/failsafe-reports/TEST-*.xml"
+    expire_in: 1 week
+
+# Static analysis. Advisory: it must not be able to block a release on its own.
+.sonar:
+  stage: analyse
+  image: $MAVEN_IMAGE
+  variables:
+    GIT_DEPTH: "0"
+    SONAR_USER_HOME: "$CI_PROJECT_DIR/.sonar"
+  cache: *maven-cache
+  script:
+    - >
+      mvn $MAVEN_CLI_OPTS verify sonar:sonar
+      -Dsonar.projectKey=$SONAR_PROJECT_KEY
+      -Dsonar.host.url=$SONAR_HOST_URL
+      -Dsonar.token=$SONAR_TOKEN
+      -Dsonar.qualitygate.wait=true
+  allow_failure: true
+
+# Builds a container image per deployable module with Jib. No Dockerfile and no
+# Docker daemon required.
+.build-image:
+  stage: build
+  image: $MAVEN_IMAGE
+  cache: *maven-cache
+  script:
+    - >
+      mvn $MAVEN_CLI_OPTS -DskipTests -P$MAVEN_PROFILE
+      -pl service-template -am
+      compile jib:build
+      -Djib.to.image=$CI_REGISTRY_IMAGE/service-template:$IMAGE_TAG
+      -Djib.to.auth.username=$CI_REGISTRY_USER
+      -Djib.to.auth.password=$CI_REGISTRY_PASSWORD
+      -Djib.console=plain

@@ -1,0 +1,66 @@
+{
+  "realm": "base",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 1800,
+
+  "roles": {
+    "realm": [
+      { "name": "SAMPLE_VIEWER", "description": "May read samples" },
+      { "name": "SAMPLE_EDITOR", "description": "May create, update and delete samples" }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "base-client",
+      "name": "Development client",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:3000", "http://localhost:5173"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "base-client",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "editor",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "editor@example.com",
+      "firstName": "Dev",
+      "lastName": "Editor",
+      "credentials": [{ "type": "password", "value": "editor", "temporary": false }],
+      "realmRoles": ["SAMPLE_VIEWER", "SAMPLE_EDITOR"]
+    },
+    {
+      "username": "viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "viewer@example.com",
+      "firstName": "Dev",
+      "lastName": "Viewer",
+      "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
+      "realmRoles": ["SAMPLE_VIEWER"]
+    }
+  ]
+}

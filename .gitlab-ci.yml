@@ -1,0 +1,14 @@
+# One pipeline definition per long-lived branch. Each included file declares its
+# own stages, so a change to the develop pipeline cannot break production.
+include:
+  - local: '.gitlab/ci/develop.yml'
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "develop"'
+
+  - local: '.gitlab/ci/staging.yml'
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "stg"'
+
+  - local: '.gitlab/ci/production.yml'
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "main"'
